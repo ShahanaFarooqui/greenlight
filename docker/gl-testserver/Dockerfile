@@ -1,7 +1,7 @@
 ############################
 # Stage 1: builder
 ############################
-FROM rust:slim-bullseye AS builder
+FROM rust:slim-bookworm AS builder
 
 #---------------------------------------------------------------------
 # Build-time arguments & environment variables
@@ -18,21 +18,22 @@ ENV PROTOC_VERSION=3.19.3
 ENV CFSSL_VERSION=1.6.5
 ENV PATH=/home/${DOCKER_USER}/.local/bin:/opt/bitcoin/bin:/usr/local/bin:$PATH
 ENV CARGO_TARGET_DIR=/tmp/target
-ENV REPO=${REPO_PATH}
+ENV REPO_PATH=${REPO_PATH}
 
 #---------------------------------------------------------------------
 # Base packages required for building
 #---------------------------------------------------------------------
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-pip \
-    python3-dev \
-    libpq-dev \
-    build-essential \
-    git \
-    curl wget unzip sudo ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+      build-essential libssl-dev zlib1g-dev libbz2-dev \
+      libreadline-dev libsqlite3-dev libffi-dev wget curl \
+      libpq-dev pkg-config git unzip sudo ca-certificates && \
+    curl -O https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz && \
+    tar -xzf Python-3.12.7.tgz && cd Python-3.12.7 && \
+    ./configure --enable-optimizations && \
+    make -j"$(nproc)" && make altinstall && \
+    cd .. && rm -rf Python-3.12.7* && \
+    rm -rf /var/lib/apt/lists/*
 
 #---------------------------------------------------------------------
 # Additional Rust components
@@ -114,7 +115,7 @@ RUN cargo build --release \
 WORKDIR ${REPO_PATH}/libs/gl-testserver
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv lock && uv sync --locked -v --no-editable
+    uv lock && uv sync --locked -v --all-packages --dev
 
 #---------------------------------------------------------------------
 # Collect all artifacts into /opt/stage
@@ -134,7 +135,7 @@ RUN mkdir -p /opt/stage/bin /opt/stage/bitcoin && \
 ############################
 # Stage 2: runtime
 ############################
-FROM ubuntu:22.04
+FROM ubuntu:24.04 AS final
 
 #---------------------------------------------------------------------
 # Minimal runtime packages
@@ -145,6 +146,9 @@ RUN apt-get update && \
     python3 \
     libpq5 \
     curl \
+    openssl \
+    ca-certificates \
+    build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 #---------------------------------------------------------------------
@@ -156,15 +160,24 @@ ARG DOCKER_USER=dev
 ARG REPO_PATH=/repo
 
 ENV PATH=/home/${DOCKER_USER}/.local/bin:/usr/local/bin:/opt/bitcoin/bin:$PATH
-ENV REPO=${REPO_PATH}
+ENV REPO_PATH=${REPO_PATH}
 ENV GL_TESTING_IGNORE_HASH=False
 
 #---------------------------------------------------------------------
 # Create runtime user
 #---------------------------------------------------------------------
-RUN groupadd -g ${GID} -o ${DOCKER_USER} && \
-    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${DOCKER_USER}
+RUN if getent passwd $UID > /dev/null; then \
+        existing_user=$(getent passwd $UID | cut -d: -f1); \
+        if [ "$existing_user" != "$DOCKER_USER" ]; then \
+            usermod -l $DOCKER_USER -d /home/$DOCKER_USER -m $existing_user; \
+            groupmod -n $DOCKER_USER $(getent group $GID | cut -d: -f1); \
+        fi; \
+    else \
+        groupadd --gid $GID $DOCKER_USER; \
+        useradd --uid $UID --gid $GID -m $DOCKER_USER; \
+    fi
 
+USER ${DOCKER_USER}
 #---------------------------------------------------------------------
 # Copy artifacts from the builder stage
 #---------------------------------------------------------------------
@@ -174,14 +187,13 @@ COPY --from=builder /opt/stage/bitcoin    /opt/bitcoin
 #---------------------------------------------------------------------
 # Application code (copy only libs to keep image small)
 #---------------------------------------------------------------------
-ADD . ${REPO}
-COPY --from=builder /opt/stage/uv ${REPO}/.venv
-RUN chown -R ${DOCKER_USER}:${DOCKER_USER} ${REPO}
+WORKDIR ${REPO_PATH}
+COPY --chown=${DOCKER_USER}:${DOCKER_USER} . ${REPO_PATH}
+COPY --from=builder /opt/stage/uv ${REPO_PATH}/.venv
 
-USER ${DOCKER_USER}
-WORKDIR ${REPO}/libs/gl-testserver/
+WORKDIR ${REPO_PATH}/libs/gl-testserver
 
 #---------------------------------------------------------------------
 # ENTRYPOINT
 #---------------------------------------------------------------------
-CMD . ${REPO}/.venv/bin/activate && python3 gltestserver run --metadata ${REPO}/ --directory ${REPO}/.gltestserver
+CMD uv run gltestserver run --directory ${REPO_PATH}/.gltestserver
