@@ -216,6 +216,19 @@ struct OnchainReceiveResponse {
     p2tr: String,
 }
 
+#[uniffi::export]
+impl OnchainReceiveResponse {
+    /// Get the bech32 (native segwit) address
+    pub fn bech32(&self) -> String {
+        self.bech32.clone()
+    }
+    
+    /// Get the taproot (P2TR) address
+    pub fn p2tr(&self) -> String {
+        self.p2tr.clone()
+    }
+}
+
 impl From<clnpb::NewaddrResponse> for OnchainReceiveResponse {
     fn from(other: clnpb::NewaddrResponse) -> Self {
         OnchainReceiveResponse {
