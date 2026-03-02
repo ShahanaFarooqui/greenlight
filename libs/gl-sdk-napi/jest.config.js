@@ -1,22 +1,29 @@
 module.exports = {
-  preset: 'ts-jest/presets/default-esm',
-  testEnvironment: 'node',
+  preset: "ts-jest/presets/default-esm",
+  testEnvironment: "node",
   maxWorkers: 1,
-  testTimeout: 60_000,
-  runner: 'jest-runner',
+  testTimeout: 120_000, // GL node ops can be slow; 120 s is safer than 30 s
+  runner: "jest-runner",
   resetModules: true,
   restoreMocks: true,
   clearMocks: true,
-  extensionsToTreatAsEsm: ['.ts'],
+  extensionsToTreatAsEsm: [".ts"],
   transform: {
-    '^.+\\.ts$': [
-      'ts-jest',
+    "^.+\\.ts$": [
+      "ts-jest",
       { useESM: true },
     ],
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
+    "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  testMatch: ["<rootDir>/tests/**/*.test.ts"],
+  // globalSetup: "./jest.globalSetup.ts",
+  // Run setup_network.py before any tests
+  globalSetup: "<rootDir>/tests/globalSetup.ts",
+
+  // Kill all network processes after all tests
+  globalTeardown: "<rootDir>/tests/globalTeardown.ts",
+
+  testMatch: ["<rootDir>/tests/**/*.spec.ts"],
   testEnvironment: '<rootDir>/tests/GltestEnvironment.ts',
 };
