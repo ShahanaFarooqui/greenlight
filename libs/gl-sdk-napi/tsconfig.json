@@ -6,7 +6,11 @@
     "esModuleInterop": true,
     "strict": true,
     "isolatedModules": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types",
+    ]    
   },
-  "include": ["tests/**/*.ts", "*.ts"]
+  "include": ["tests/**/*.ts", "*.ts", "tests/fixtures.ts"]
 }
