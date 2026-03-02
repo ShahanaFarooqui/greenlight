@@ -17,13 +17,5 @@ module.exports = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  // globalSetup: "./jest.globalSetup.ts",
-  // Run setup_network.py before any tests
-  globalSetup: "<rootDir>/tests/globalSetup.ts",
-
-  // Kill all network processes after all tests
-  globalTeardown: "<rootDir>/tests/globalTeardown.ts",
-
   testMatch: ["<rootDir>/tests/**/*.spec.ts"],
-  testEnvironment: '<rootDir>/tests/GltestEnvironment.ts',
 };

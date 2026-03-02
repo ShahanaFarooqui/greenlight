@@ -40,6 +40,7 @@
     "@types/execa": "^2.0.2",
     "@types/jest": "30.0.0",
     "@types/node": "20.19.33",
+    "bip39": "^3.1.0",
     "jest": "29.7.0",
     "ts-jest": "29.4.6",
     "typescript": "5.9.3"
